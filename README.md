@@ -3,8 +3,8 @@
 ## Installation Procedure:
 
 1. Log into OpenShift cluster
-2. git clone https://github.com/RH-SPRUCE-TEAM/spruce-provisioning.git
-3. cd spruce-provisioning
+2. git clone https://github.com/dvanbalen/pipeline-provisioning/tree/main
+3. cd pipeline-provisioning
 4. Run the configuration script, with one or more of the optional parameters. Keep in mind that some parameters need to be base64 encoded (run the script with -h to see a description of each option, and whether it needs to be encoded).
 5. ./configure.sh -t "\<git-personal-access-token\>" -u "\<git-username\>" -g "\<devops-github-repo-url\>" -s "\<git-oauth-client-secret\>" -i "\<git-oauth-client-id\>"
 6. oc apply -k pre-requisites
@@ -18,9 +18,9 @@
 3. Click Developer settings
 4. Click OAuth Apps
 5. Click New Org OAuth App button
-6. Name the new app "va-spruce-<OCPClusterID>
+6. Name the new app "<app-name>-<OCPClusterID>
 7. Paste the main cluster URL under Homepage URL
-8. Set the Authorization callback URL to "https://oauth-openshift.<your-cluster-url>/oauth2callback/va-spruce-team/"
+8. Set the Authorization callback URL to "https://oauth-openshift.<your-cluster-url>/oauth2callback/<name-of-github-group>/"
 9. Click the Register application button
 10. Copy the Client ID and add it to the spec/identityProviders/github/clientID field in the base/auth/oauth.yaml file
 11. Click the Generate a new client secret button
