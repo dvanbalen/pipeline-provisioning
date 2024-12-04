@@ -1,4 +1,4 @@
-# Spruce Provisioning via Kustomize
+# Pipelines and GitOps Provisioning via Kustomize
 
 ## Installation Procedure:
 
