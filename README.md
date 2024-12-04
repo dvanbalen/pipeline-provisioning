@@ -27,7 +27,7 @@
 12. Copy the client secret and add it to the base/auth/secrets.yaml file
 13. Click the Update application button
 
-## Setting up a Webhood for the Dev Pipeline
+## Setting up a Webhook for the Dev Pipeline
 
 1. View Routes for the spruce-pipelines namespace and copy the URL for the el-eventlistener-ui Route
 2. Navigate to the Git repository that you would like to trigger the build
