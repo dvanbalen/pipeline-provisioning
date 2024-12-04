@@ -1,0 +1,40 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: spruce-app
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: spruce-dev
+    server: 'https://kubernetes.default.svc'
+  project: default
+  source:
+    path: environments/dev
+    repoURL: 'https://github.com/RH-SPRUCE-TEAM/spruce-gitops.git'
+    targetRevision: main
+  syncPolicy:
+    automated: {}
+    syncOptions:
+      - CreateNamespace=true
+
+---
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: spruce-app-prod
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: spruce-prod
+    server: 'https://kubernetes.default.svc'
+  project: default
+  source:
+    path: environments/prod
+    repoURL: 'https://github.com/RH-SPRUCE-TEAM/spruce-gitops.git'
+    targetRevision: main
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

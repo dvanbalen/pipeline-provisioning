@@ -1,0 +1,20 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: EventListener
+metadata:
+  name: eventlistener-ui
+  namespace: spruce-pipelines
+spec:
+  namespaceSelector: {}
+  resources: {}
+  serviceAccountName: pipeline
+  triggers:
+    - bindings:
+        - kind: TriggerBinding
+          ref: github
+      name: github-spruce-app-ui-pipeline
+      template:
+        ref: spruce-app-dev-pipeline
+status:
+  configuration:
+    generatedName: el-eventlistener-ui
+

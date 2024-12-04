@@ -1,0 +1,128 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: git-update-deployment
+  namespace: spruce-pipelines
+  labels:
+    app.kubernetes.io/instance: spruce-pipelines
+    app.kubernetes.io/version: '0.2'
+    operator.tekton.dev/provider-type: community
+spec:
+  description: >-
+    This Task can be used to update image digest in a Git repo using kustomize.
+    It requires a secret with credentials for accessing the git repo.
+  params:
+    - name: GIT_REPOSITORY
+      type: string
+    - name: GIT_REF
+      type: string
+    - name: CURRENT_IMAGE
+      type: string
+    - name: NEW_IMAGE
+      type: string
+    - name: NEW_DIGEST
+      type: string
+    - name: KUSTOMIZATION_PATH
+      type: string
+  results:
+    - description: The commit SHA
+      name: commit
+      type: string
+  steps:
+    - image: 'docker.io/alpine/git:v2.26.2'
+      name: git-clone
+      resources: {}
+      script: >
+        rm -rf git-update-digest-workdir
+
+        git clone $(params.GIT_REPOSITORY) -b $(params.GIT_REF)
+        git-update-digest-workdir
+      workingDir: $(workspaces.workspace.path)
+    - image: 'quay.io/wpernath/kustomize-ubi:latest'
+      name: update-digest
+      resources: {}
+      script: >
+        cd git-update-digest-workdir/$(params.KUSTOMIZATION_PATH)
+
+        kustomize edit set image
+        $(params.CURRENT_IMAGE)=$(params.NEW_IMAGE)@$(params.NEW_DIGEST)
+
+
+        echo "##########################"
+
+        echo "### kustomization.yaml ###"
+
+        echo "##########################"
+
+        cat kustomization.yaml
+      workingDir: $(workspaces.workspace.path)
+    - image: 'docker.io/alpine/git:v2.26.2'
+      name: git-commit
+      resources: {}
+      script: |
+        cd git-update-digest-workdir
+
+        git config user.email "tektonbot@redhat.com"
+        git config user.name "My Tekton Bot"
+
+        git status
+        git add $(params.KUSTOMIZATION_PATH)/kustomization.yaml
+        git commit -m "[ci] Image digest updated"
+
+        git push
+
+        RESULT_SHA="$(git rev-parse HEAD | tr -d '\n')"
+        EXIT_CODE="$?"
+        if [ "$EXIT_CODE" != 0 ]
+        then
+          exit $EXIT_CODE
+        fi
+        # Make sure we don't add a trailing newline to the result!
+        echo -n "$RESULT_SHA" > $(results.commit.path)
+      workingDir: $(workspaces.workspace.path)
+  workspaces:
+    - description: The workspace consisting of maven project.
+      name: workspace
+
+---
+
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: image-tag-to-digest
+  namespace: spruce-pipelines
+  labels:
+    app.kubernetes.io/instance: spruce-pipelines
+    app.kubernetes.io/version: '0.2'
+    operator.tekton.dev/provider-type: community
+spec:
+  params:
+    - description: The location of the image without the tag
+      name: image_dest_url
+      type: string
+    - description: the tag of the image to return the hash for
+      name: image_dest_tag
+      type: string
+  results:
+    - description: The digest for the image created
+      name: image_digest
+      type: string
+  steps:
+    - image: 'quay.io/gnunn/tools:4.10-1'
+      name: get-image-digest
+      resources: {}
+      script: >
+        #!/usr/bin/env bash
+
+
+        DIGEST=$(skopeo inspect
+        docker://$(params.image_dest_url):$(params.image_dest_tag) | jq -r
+        .Digest)
+
+
+        echo "Digest for image $(params.image_dest_url):$(params.image_dest_tag)
+        is '${DIGEST}'"
+
+
+        echo -n "$DIGEST" > $(results.image_digest.path)
+

@@ -1,0 +1,362 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: dev-python-s2i-pipeline
+  namespace: spruce-pipelines
+spec:
+  params:
+    - default: 'https://github.com/RH-SPRUCE-TEAM/djangotodos.git'
+      name: SOURCE_GIT_URL
+      type: string
+    - default: dvb
+      name: SOURCE_GIT_REVISION
+      type: string
+    - default: >-
+        image-registry.openshift-image-registry.svc:5000/spruce-dev/spruce-app
+      name: IMAGE_NAME
+      type: string
+    - default: .
+      name: PATH_CONTEXT
+      type: string
+    - default: 'https://github.com/RH-SPRUCE-TEAM/spruce-gitops.git'
+      name: CONFIG_GIT_REPO
+      type: string
+    - default: main
+      name: CONFIG_GIT_REVISION
+      type: string
+    - default: 3.8-ubi8
+      name: VERSION
+      type: string
+    - default: reggie-app
+      name: APP_NAME
+      type: string
+  tasks:
+    - name: fetch-repository
+      params:
+        - name: url
+          value: $(params.SOURCE_GIT_URL)
+        - name: revision
+          value: $(params.SOURCE_GIT_REVISION)
+        - name: refspec
+          value: ''
+        - name: submodules
+          value: 'true'
+        - name: depth
+          value: '1'
+        - name: sslVerify
+          value: 'true'
+        - name: crtFileName
+          value: ca-bundle.crt
+        - name: subdirectory
+          value: ''
+        - name: sparseCheckoutDirectories
+          value: ''
+        - name: deleteExisting
+          value: 'true'
+        - name: httpProxy
+          value: ''
+        - name: httpsProxy
+          value: ''
+        - name: noProxy
+          value: ''
+        - name: verbose
+          value: 'true'
+        - name: gitInitImage
+          value: >-
+            registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8@sha256:a652e2fec41694745977d385c845244db3819acca926d85a52c77515f1f2e612
+        - name: userHome
+          value: /home/git
+      taskRef:
+        kind: ClusterTask
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: source
+    - name: build-and-push
+      params:
+        - name: VERSION
+          value: latest
+        - name: PATH_CONTEXT
+          value: .
+        - name: TLSVERIFY
+          value: 'true'
+        - name: IMAGE
+          value: $(params.IMAGE_NAME)
+        - name: BUILDER_IMAGE
+          value: >-
+            registry.redhat.io/rhel8/buildah@sha256:3c2ea396a114221575a4031d90d28c43563f7b96288374e0ba8b22de3ed97b5a
+        - name: SKIP_PUSH
+          value: 'false'
+        - name: ENV_VARS
+          value: []
+      runAfter:
+        - fetch-repository
+      taskRef:
+        kind: ClusterTask
+        name: s2i-python
+      workspaces:
+        - name: source
+          workspace: source
+    - name: git-update-deployment
+      params:
+        - name: GIT_REPOSITORY
+          value: $(params.CONFIG_GIT_REPO)
+        - name: GIT_REF
+          value: $(params.CONFIG_GIT_REVISION)
+        - name: CURRENT_IMAGE
+          value: 'quay.io/bluesman/vote-ui:latest'
+        - name: NEW_IMAGE
+          value: $(params.IMAGE_NAME)
+        - name: NEW_DIGEST
+          value: $(tasks.build-and-push.results.IMAGE_DIGEST)
+        - name: KUSTOMIZATION_PATH
+          value: environments/dev
+      runAfter:
+        - build-and-push
+      taskRef:
+        kind: Task
+        name: git-update-deployment
+      workspaces:
+        - name: workspace
+          workspace: source
+  workspaces:
+    - name: source
+
+---
+
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: dev-buildah-pipeline
+  namespace: spruce-pipelines
+spec:
+  params:
+    - default: 'https://github.com/RH-SPRUCE-TEAM/djangotodos.git'
+      description: The application git repository url
+      name: SOURCE_GIT_URL
+      type: string
+    - default: dvb
+      description: The application git repository revision
+      name: SOURCE_GIT_REVISION
+      type: string
+    - default: >-
+        image-registry.openshift-image-registry.svc:5000/spruce-dev/spruce-app
+      name: IMAGE_NAME
+      type: string
+    - default: .
+      name: PATH_CONTEXT
+      type: string
+    - default: 'https://github.com/RH-SPRUCE-TEAM/spruce-gitops.git'
+      name: CONFIG_GIT_REPO
+      type: string
+    - default: main
+      name: CONFIG_GIT_REVISION
+      type: string
+  tasks:
+    - name: git-clone
+      params:
+        - name: url
+          value: $(params.SOURCE_GIT_URL)
+        - name: revision
+          value: $(params.SOURCE_GIT_REVISION)
+        - name: deleteExisting
+          value: 'true'
+      taskRef:
+        kind: ClusterTask
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: app-source
+    - name: build-and-push
+      params:
+        - name: IMAGE
+          value: $(params.IMAGE_NAME)
+        - name: TLSVERIFY
+          value: 'false'
+        - name: CONTEXT
+          value: $(params.PATH_CONTEXT)
+      runAfter:
+        - git-clone
+      taskRef:
+        kind: ClusterTask
+        name: buildah
+      workspaces:
+        - name: source
+          workspace: app-source
+    - name: git-update-deployment
+      params:
+        - name: GIT_REPOSITORY
+          value: $(params.CONFIG_GIT_REPO)
+        - name: GIT_REF
+          value: $(params.CONFIG_GIT_REVISION)
+        - name: CURRENT_IMAGE
+          value: 'quay.io/bluesman/vote-ui:latest'
+        - name: NEW_IMAGE
+          value: $(params.IMAGE_NAME)
+        - name: NEW_DIGEST
+          value: $(tasks.build-and-push.results.IMAGE_DIGEST)
+        - name: KUSTOMIZATION_PATH
+          value: environments/dev
+      runAfter:
+        - build-and-push
+      taskRef:
+        kind: Task
+        name: git-update-deployment
+      workspaces:
+        - name: workspace
+          workspace: app-source
+  workspaces:
+    - name: app-source
+
+
+---
+
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: prod-promotion-pipeline
+  namespace: spruce-pipelines
+spec:
+  params:
+    - default: 'spruce-dev/spruce-app:latest'
+      name: SOURCE_IMAGE
+      type: string
+    - default: 'spruce-prod/spruce-app:latest'
+      name: DEST_IMAGE
+      type: string
+    - default: 'https://github.com/RH-SPRUCE-TEAM/spruce-gitops.git'
+      name: CONFIG_GIT_REPO
+      type: string
+    - default: main
+      name: CONFIG_GIT_REVISION
+      type: string
+    - default: 'image-registry.openshift-image-registry.svc:5000/spruce-prod/spruce-app'
+      name: IMAGE_NAME
+      type: string
+  tasks:
+    - name: tag-to-prod
+      params:
+        - name: SCRIPT
+          value: oc tag $(params.SOURCE_IMAGE) $(params.DEST_IMAGE)
+        - name: VERSION
+          value: latest
+      taskRef:
+        kind: ClusterTask
+        name: openshift-client
+    - name: image-tag-to-digest
+      params:
+        - name: image_dest_url
+          value: $(params.IMAGE_NAME)
+        - name: image_dest_tag
+          value: latest
+      runAfter:
+        - tag-to-prod
+      taskRef:
+        kind: Task
+        name: image-tag-to-digest
+    - name: git-update-deployment
+      params:
+        - name: GIT_REPOSITORY
+          value: $(params.CONFIG_GIT_REPO)
+        - name: GIT_REF
+          value: $(params.CONFIG_GIT_REVISION)
+        - name: CURRENT_IMAGE
+          value: 'quay.io/bluesman/vote-ui:latest'
+        - name: NEW_IMAGE
+          value: $(params.IMAGE_NAME)
+        - name: NEW_DIGEST
+          value: $(tasks.image-tag-to-digest.results.image_digest)
+        - name: KUSTOMIZATION_PATH
+          value: environments/prod
+      runAfter:
+        - image-tag-to-digest
+      taskRef:
+        kind: Task
+        name: git-update-deployment
+      workspaces:
+        - name: workspace
+          workspace: app-source
+  workspaces:
+    - name: app-source
+
+---
+
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: dev-s2i-direct-deploy-pipeline
+  namespace: spruce-pipelines
+spec:
+  params:
+    - default: spruce-app
+      name: APP_NAME
+      type: string
+    - default: 'https://github.com/RH-SPRUCE-TEAM/djangotodos.git'
+      name: GIT_REPO
+      type: string
+    - default: dvb
+      name: GIT_REVISION
+      type: string
+    - default: >-
+        image-registry.openshift-image-registry.svc:5000/spruce-dev/spruce-app
+      name: IMAGE_NAME
+      type: string
+    - default: .
+      name: PATH_CONTEXT
+      type: string
+    - default: 'https://github.com/RH-SPRUCE-TEAM/spruce-gitops.git'
+      name: CONFIG_GIT_REPO
+      type: string
+    - default: main
+      name: CONFIG_GIT_REVISION
+      type: string
+    - default: 3.8-ubi8
+      name: VERSION
+      type: string
+  tasks:
+    - name: fetch-repository
+      params:
+        - name: url
+          value: $(params.GIT_REPO)
+        - name: revision
+          value: $(params.GIT_REVISION)
+        - name: subdirectory
+          value: ''
+        - name: deleteExisting
+          value: 'true'
+      taskRef:
+        kind: ClusterTask
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: workspace
+    - name: build
+      params:
+        - name: IMAGE
+          value: $(params.IMAGE_NAME)
+        - name: TLSVERIFY
+          value: 'false'
+        - name: PATH_CONTEXT
+          value: $(params.PATH_CONTEXT)
+        - name: VERSION
+          value: $(params.VERSION)
+      runAfter:
+        - fetch-repository
+      taskRef:
+        kind: ClusterTask
+        name: s2i-python
+      workspaces:
+        - name: source
+          workspace: workspace
+    - name: deploy
+      params:
+        - name: SCRIPT
+          value: oc rollout status dc/$(params.APP_NAME)
+      runAfter:
+        - build
+      taskRef:
+        kind: ClusterTask
+        name: openshift-client
+  workspaces:
+    - name: workspace
+

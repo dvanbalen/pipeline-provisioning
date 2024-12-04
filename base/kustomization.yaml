@@ -1,0 +1,5 @@
+resources:
+- ./auth/
+- ./pipelines/
+- ./gitops/
+- ./devspaces/

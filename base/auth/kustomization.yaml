@@ -1,0 +1,4 @@
+resources:
+  - oauth.yaml
+  - secrets.yaml
+

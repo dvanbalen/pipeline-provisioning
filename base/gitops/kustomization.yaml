@@ -1,0 +1,6 @@
+resources:
+  - argocd.yaml
+  - rbac.yaml
+  - secrets.yaml
+  - applications.yaml
+

@@ -1,0 +1,12 @@
+resources:
+  - namespace.yaml
+  - serviceaccounts.yaml
+  - rolebindings.yaml
+  - pipelines.yaml
+  - pipeline-tasks.yaml
+  - pvcs.yaml
+  - secrets.yaml
+  - eventlisteners.yaml
+  - triggertemplates.yaml
+  - triggerbindings.yaml
+  - routes.yaml

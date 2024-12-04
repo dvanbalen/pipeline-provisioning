@@ -1,0 +1,23 @@
+apiVersion: config.openshift.io/v1
+kind: OAuth
+metadata:
+  name: cluster
+spec:
+  identityProviders:
+    - htpasswd:
+        fileData:
+          name: htpasswd
+      mappingMethod: claim
+      name: htpasswd_provider
+      type: HTPasswd
+    - github:
+        clientID: 50d488f2c279a182a5da
+        clientSecret:
+          name: github-client-secret
+        hostname: ''
+        organizations:
+          - RH-SPRUCE-TEAM
+        teams: []
+      mappingMethod: claim
+      name: va-spruce-team
+      type: GitHub

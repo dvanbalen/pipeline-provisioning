@@ -1,0 +1,17 @@
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: el-eventlistener-ui
+  namespace: spruce-pipelines
+  labels:
+    app.kubernetes.io/managed-by: EventListener
+    app.kubernetes.io/part-of: Triggers
+    eventlistener: eventlistener-ui
+spec:
+  to:
+    kind: Service
+    name: el-eventlistener-ui
+    weight: 100
+  port:
+    targetPort: http-listener
+  wildcardPolicy: None
